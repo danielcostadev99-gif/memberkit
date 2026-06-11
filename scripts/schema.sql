@@ -20,6 +20,9 @@ CREATE TABLE public.products (
   description TEXT,
   thumbnail_url TEXT,
   checkout_url TEXT NOT NULL,          -- Link da Cakto caso esteja bloqueado
+  upsell_priority INT4 DEFAULT 0,
+  widget_badge_text TEXT,
+  widget_alert_text TEXT,
   product_route TEXT NOT NULL,         -- Rota interna do Next.js (Ex: '/dashboard/treino-glp1')
   is_recurring BOOLEAN NOT NULL DEFAULT false,
   access_days int4,
