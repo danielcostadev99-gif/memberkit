@@ -95,20 +95,28 @@ export default function ClientDashboard() {
         console.log('directProducts lookup', { directProducts, directErr })
       }
 
-      // escolhe o funnel do primeiro produto comprado
-      const funnelId = ownedProducts[0]?.funnel_id
-
       let recommendedProducts: Product[] = []
-      if (funnelId) {
-        const { data: productsData, error: prodErr } = await supabase
-          .from('products')
-          .select('*')
-          .eq('funnel_id', funnelId)
-
-        console.log('products query for funnel', { funnelId, productsData, prodErr })
+      if ((ownedProducts || []).length === 0) {
+        // User has no owned products — show general recommendations (all products)
+        const { data: productsData, error: prodErr } = await supabase.from('products').select('*')
+        console.log('no owned products, fetching all products for recommendations', { productsData, prodErr })
         if (!prodErr && productsData) {
-          const ownedIds = new Set(ownedProducts.map((p) => p.id))
-          recommendedProducts = productsData.filter((p: Product) => !ownedIds.has(p.id))
+          recommendedProducts = productsData as Product[]
+        }
+      } else {
+        // escolhe o funnel do primeiro produto comprado
+        const funnelId = ownedProducts[0]?.funnel_id
+        if (funnelId) {
+          const { data: productsData, error: prodErr } = await supabase
+            .from('products')
+            .select('*')
+            .eq('funnel_id', funnelId)
+
+          console.log('products query for funnel', { funnelId, productsData, prodErr })
+          if (!prodErr && productsData) {
+            const ownedIds = new Set(ownedProducts.map((p) => p.id))
+            recommendedProducts = productsData.filter((p: Product) => !ownedIds.has(p.id))
+          }
         }
       }
 
