@@ -90,7 +90,7 @@ export async function POST(request: Request) {
 
     // 3) Create user if not found
     if (!userId) {
-      const password = randomPassword()
+      const password = '1234'
       const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({
         email,
         password,
