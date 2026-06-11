@@ -22,3 +22,74 @@ body {
   clip: rect(1px, 1px, 1px, 1px);
   white-space: nowrap;
 }
+
+/* Custom theme variables (palette taken from provided image) */
+:root {
+  --color-bg: #090514;    /* deep background */
+  --color-card: #130f26;  /* card / panel */
+  --color-text: #f4f4fb;  /* primary text */
+  --color-muted: #94a3b8; /* muted text */
+  --color-primary: #fa7bf8; /* accent / pills */
+  --color-primary-600: #d96bed;
+}
+
+/* Apply base colors */
+html, body, #__next {
+  background-color: var(--color-bg) !important;
+  color: var(--color-text) !important;
+}
+
+/* Override common Tailwind utility classes used across the app to reflect new palette */
+.bg-neutral-900, .bg-zinc-950 {
+  background-color: var(--color-bg) !important;
+}
+
+.bg-neutral-800 {
+  background-color: var(--color-card) !important;
+}
+
+.bg-zinc-900\/50 {
+  background-color: rgba(19, 15, 38, 0.5) !important;
+}
+
+.text-neutral-400, .text-neutral-300 {
+  color: var(--color-muted) !important;
+}
+
+.text-neutral-200 {
+  color: rgba(244,244,251,0.9) !important;
+}
+
+.border-neutral-700 {
+  border-color: rgba(255,255,255,0.06) !important;
+}
+
+.bg-emerald-500, .bg-emerald-600, .bg-emerald-700 {
+  background-color: var(--color-primary) !important;
+  color: black !important;
+}
+
+.bg-emerald-600 {
+  background-color: var(--color-primary-600) !important;
+}
+
+/* Slightly brighter card on hover for interactive elements */
+.hover\:bg-neutral-700:hover {
+  background-color: rgba(27, 14, 37, 0.9) !important;
+}
+
+/* Buttons that used emerald now use primary color with rounded pill look */
+.rounded-full, .rounded-md {
+  /* keep Tailwind rounding but ensure contrast on primary */
+}
+
+/* Ensure iframes/videos have neutral background when no video */
+.aspect-video {
+  background-color: #000000;
+}
+
+/* Utility to highlight names */
+.exercise-name {
+  color: var(--color-text) !important;
+  font-weight: 600;
+}
