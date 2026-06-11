@@ -22,6 +22,7 @@ CREATE TABLE public.products (
   checkout_url TEXT NOT NULL,          -- Link da Cakto caso esteja bloqueado
   product_route TEXT NOT NULL,         -- Rota interna do Next.js (Ex: '/dashboard/treino-glp1')
   is_recurring BOOLEAN NOT NULL DEFAULT false,
+  access_days int4,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT products_funnel_slug_unique UNIQUE (funnel_id, slug)
 );
