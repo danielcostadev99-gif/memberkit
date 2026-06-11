@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useSupabase } from '../../components/SupabaseProvider'
 import { useRouter } from 'next/navigation'
+import NextStepWidget from '../../components/dashboard/NextStepWidget'
 
 type Product = {
   id: string
@@ -22,6 +23,8 @@ export default function ClientDashboard() {
   const [owned, setOwned] = useState<Product[]>([])
   const [recommended, setRecommended] = useState<Product[]>([])
   const [modalProduct, setModalProduct] = useState<Product | null>(null)
+  const [userProductIds, setUserProductIds] = useState<string[]>([])
+  const [user, setUser] = useState<any | null>(null)
 
   const supabase = useSupabase()
 
@@ -57,6 +60,8 @@ export default function ClientDashboard() {
         return
       }
 
+      if (mounted) setUser(user)
+
       // Produtos que o usuário possui
       const { data: accessData, error: accessErr } = await supabase
         .from('user_access')
@@ -84,6 +89,7 @@ export default function ClientDashboard() {
 
       const productIds = (accessData || []).map((r: any) => r.product_id)
       console.log('productIds from user_access rows', productIds)
+      if (mounted) setUserProductIds((productIds || []).map(String))
 
       if ((ownedProducts || []).length === 0 && productIds.length > 0) {
         // Fallback: query products directly by id to debug why nested relation is empty
@@ -123,6 +129,7 @@ export default function ClientDashboard() {
       if (!mounted) return
       setOwned(ownedProducts)
       setRecommended(recommendedProducts)
+      setUserProductIds((productIds || []).map(String))
       setLoading(false)
     }
 
@@ -156,6 +163,10 @@ export default function ClientDashboard() {
       </header>
 
       <main className="pt-20 max-w-7xl mx-auto px-6 pb-12">
+        {/* Next Step Widget */}
+        <div className="mb-8">
+          <NextStepWidget user_id={user?.id || ''} userProducts={userProductIds} />
+        </div>
         {/* Active Programs Section */}
         <section className="mb-10">
           <div className="flex items-center gap-3 mb-6">
