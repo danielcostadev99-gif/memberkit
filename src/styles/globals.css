@@ -2,6 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Ensure the app always starts with a dark, premium theme */
 html, body, #__next {
   height: 100%;
 }
@@ -9,17 +10,8 @@ html, body, #__next {
 body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-html, body, #__next {
-  height: 100%;
-}
-
-body {
-  @apply bg-gray-900 text-white antialiased;
+  /* Required classes: deep black background, crisp light text, smooth fonts */
+  @apply bg-zinc-950 text-zinc-100 antialiased;
 }
 
 .sr-only {
