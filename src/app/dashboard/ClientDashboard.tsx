@@ -64,6 +64,12 @@ export default function ClientDashboard() {
         .eq('user_id', user.id)
         .eq('status', 'active')
 
+      console.log('user_access query', { accessData, accessErr })
+      try {
+        console.log('user_access full rows:', JSON.stringify(accessData, null, 2))
+      } catch (e) {
+        console.log('user_access inspect failed', e)
+      }
       if (accessErr) {
         console.error(accessErr)
         setLoading(false)
@@ -73,6 +79,21 @@ export default function ClientDashboard() {
       const ownedProducts: Product[] = (accessData || [])
         .map((r: any) => r.products)
         .filter(Boolean)
+
+      console.log('ownedProducts from access rows', ownedProducts)
+
+      const productIds = (accessData || []).map((r: any) => r.product_id)
+      console.log('productIds from user_access rows', productIds)
+
+      if ((ownedProducts || []).length === 0 && productIds.length > 0) {
+        // Fallback: query products directly by id to debug why nested relation is empty
+        const { data: directProducts, error: directErr } = await supabase
+          .from('products')
+          .select('*')
+          .in('id', productIds)
+
+        console.log('directProducts lookup', { directProducts, directErr })
+      }
 
       // escolhe o funnel do primeiro produto comprado
       const funnelId = ownedProducts[0]?.funnel_id
@@ -84,6 +105,7 @@ export default function ClientDashboard() {
           .select('*')
           .eq('funnel_id', funnelId)
 
+        console.log('products query for funnel', { funnelId, productsData, prodErr })
         if (!prodErr && productsData) {
           const ownedIds = new Set(ownedProducts.map((p) => p.id))
           recommendedProducts = productsData.filter((p: Product) => !ownedIds.has(p.id))
