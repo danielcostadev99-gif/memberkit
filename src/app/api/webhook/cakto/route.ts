@@ -5,10 +5,15 @@ import crypto from 'crypto'
 export const runtime = 'nodejs'
 
 type WebhookPayload = {
-  email?: string
-  product_slug?: string
-  productSlug?: string
-  slug?: string
+  event?: string
+  data?: {
+    customer?: {
+      email?: string
+    }
+    product?: {
+      id?: string | number
+    }
+  }
 }
 
 function randomPassword() {
@@ -18,11 +23,17 @@ function randomPassword() {
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as WebhookPayload
-    const email = (body.email || '').toLowerCase().trim()
-    const productSlug = (body.product_slug || body.productSlug || body.slug || '').trim()
 
-    if (!email || !productSlug) {
-      return NextResponse.json({ error: 'Invalid payload: email and product slug are required' }, { status: 400 })
+    // 0) Only process approved purchases
+    if (body.event !== 'purchase_approved') {
+      return NextResponse.json({ ok: true, message: 'Event ignored' }, { status: 200 })
+    }
+
+    const email = (body.data?.customer?.email || '').toLowerCase().trim()
+    const productId = body.data?.product?.id ? String(body.data?.product?.id).trim() : ''
+
+    if (!email || !productId) {
+      return NextResponse.json({ error: 'Invalid payload: customer email and product id are required' }, { status: 400 })
     }
 
     // Read env vars inside handler to avoid build-time failures
@@ -42,7 +53,7 @@ export async function POST(request: Request) {
     const { data: product, error: productErr } = await supabaseAdmin
       .from('products')
       .select('id')
-      .eq('slug', productSlug)
+      .eq('id', productId)
       .maybeSingle()
 
     if (productErr) {
