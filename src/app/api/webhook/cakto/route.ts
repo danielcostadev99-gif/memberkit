@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     // 1) Verify product exists
     const { data: product, error: productErr } = await supabaseAdmin
       .from('products')
-      .select('id')
+      .select('id, access_days')
       .eq('id', productId)
       .maybeSingle()
 
@@ -121,8 +121,18 @@ export async function POST(request: Request) {
       }
     }
 
-    // 4) Upsert user_access for 90 days
-    const validUntil = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString()
+    // 4) Upsert user_access with product-specific access duration
+    let validUntil: string | null = null
+    const accessDays = (product as any)?.access_days
+    if (typeof accessDays === 'number' && accessDays > 0) {
+      const expires = new Date(Date.now() + accessDays * 24 * 60 * 60 * 1000)
+      validUntil = expires.toISOString()
+      console.log(`Granting user ${userId} access for ${accessDays} days (expires: ${validUntil})`)
+    } else {
+      // access_days null/undefined -> lifetime access
+      validUntil = null
+      console.log(`Granting user ${userId} lifetime access (access_days=${accessDays})`)
+    }
 
     const upsertPayload = {
       user_id: userId,
