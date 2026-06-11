@@ -4,21 +4,11 @@ import crypto from 'crypto'
 
 export const runtime = 'nodejs'
 
-const SUPABASE_URL = process.env.SUPABASE_URL
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-  // Fail fast during build so server routes that rely on the service role don't compile without vars
-  throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY environment variables')
-}
-
-const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-  auth: { persistSession: false },
-})
-
 type WebhookPayload = {
   email?: string
   product_slug?: string
+  productSlug?: string
+  slug?: string
 }
 
 function randomPassword() {
@@ -29,11 +19,24 @@ export async function POST(request: Request) {
   try {
     const body = (await request.json()) as WebhookPayload
     const email = (body.email || '').toLowerCase().trim()
-    const productSlug = (body.product_slug || '').trim()
+    const productSlug = (body.product_slug || body.productSlug || body.slug || '').trim()
 
     if (!email || !productSlug) {
-      return NextResponse.json({ error: 'Invalid payload: email and product_slug are required' }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid payload: email and product slug are required' }, { status: 400 })
     }
+
+    // Read env vars inside handler to avoid build-time failures
+    const SUPABASE_URL = process.env.SUPABASE_URL
+    const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      console.error('Missing Supabase env vars at runtime')
+      return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 })
+    }
+
+    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+      auth: { persistSession: false },
+    })
 
     // 1) Verify product exists
     const { data: product, error: productErr } = await supabaseAdmin
@@ -51,24 +54,42 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Product not found' }, { status: 404 })
     }
 
-    // 2) Find user in auth.users (service role allows querying auth.users)
-    const { data: existingUser, error: userQueryErr } = await supabaseAdmin
-      .from('auth.users')
-      .select('id,email')
-      .eq('email', email)
-      .maybeSingle()
-
-    if (userQueryErr) {
-      console.error('Error querying auth.users:', userQueryErr)
-      return NextResponse.json({ error: 'Database error' }, { status: 500 })
+    // 2) Find user by email using admin API with a safe fallback
+    let userId: string | undefined
+    try {
+      // Prefer admin.listUsers if available
+      const listFn: any = supabaseAdmin.auth?.admin?.listUsers
+      if (typeof listFn === 'function') {
+        const res = await listFn.call(supabaseAdmin.auth.admin, {})
+        const users = (res && res.data && res.data.users) || res.data || []
+        const found = users.find((u: any) => (u.email || '').toLowerCase() === email)
+        if (found) userId = found.id || found.user?.id
+      }
+    } catch (e) {
+      console.warn('admin.listUsers failed, falling back to direct auth.users query', e)
     }
 
-    let userId: string
+    if (!userId) {
+      try {
+        // Fallback: try reading auth.users table directly (service role should have access)
+        const { data: existingUser, error: userQueryErr } = await supabaseAdmin
+          .from('auth.users')
+          .select('id,email')
+          .eq('email', email)
+          .maybeSingle()
 
-    if (existingUser && existingUser.id) {
-      userId = existingUser.id
-    } else {
-      // 3) Create user via Supabase Admin
+        if (userQueryErr) {
+          console.warn('auth.users query failed', userQueryErr)
+        } else if (existingUser && existingUser.id) {
+          userId = existingUser.id
+        }
+      } catch (e) {
+        console.warn('Fallback auth.users query threw', e)
+      }
+    }
+
+    // 3) Create user if not found
+    if (!userId) {
       const password = randomPassword()
       const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({
         email,
@@ -77,11 +98,10 @@ export async function POST(request: Request) {
       } as any)
 
       if (createErr) {
-        console.error('Error creating user:', createErr)
+        console.error('Error creating user via admin API:', createErr)
         return NextResponse.json({ error: 'Failed to create user' }, { status: 500 })
       }
 
-      // created may contain different shapes depending on supabase version
       const createdAny = created as any
       userId = createdAny?.user?.id || createdAny?.id
       if (!userId) {
