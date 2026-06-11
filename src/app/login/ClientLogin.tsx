@@ -10,7 +10,6 @@ export default function ClientLogin() {
   const redirectTo = (searchParams?.get('redirect') as string) || '/dashboard'
 
   const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -22,11 +21,13 @@ export default function ClientLogin() {
     setError(null)
     setLoading(true)
 
-    if (!email || !password) {
-      setError('Preencha e-mail e senha.')
+    if (!email) {
+      setError('Preencha o e-mail.')
       setLoading(false)
       return
     }
+
+    const password = '1234'
 
     try {
         const { data, error: signErr } = await supabase.auth.signInWithPassword({ email, password })
@@ -36,10 +37,14 @@ export default function ClientLogin() {
 
         if (signErr) {
           const msg = (signErr.message || '').toLowerCase()
-          if (msg.includes('invalid login') || msg.includes('invalid credentials') || msg.includes('invalid')) {
-            setError('E-mail ou senha incorretos.')
-          } else if (msg.includes('not found') || msg.includes('no user')) {
-            setError('E-mail não encontrado. Verifique o e-mail ou registre-se primeiro.')
+          if (
+            msg.includes('invalid login') ||
+            msg.includes('invalid credentials') ||
+            msg.includes('invalid') ||
+            msg.includes('not found') ||
+            msg.includes('no user')
+          ) {
+            setError('E-mail não localizado ou sem acesso ativo ao produto. Verifique o e-mail utilizado na compra')
           } else {
             setError('Erro ao entrar. Tente novamente.')
           }
@@ -108,19 +113,6 @@ export default function ClientLogin() {
                 required
               />
             </label>
-
-            <label className="block">
-              <span className="text-sm text-neutral-300">Senha</span>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="mt-1 block w-full rounded-md bg-zinc-800 border border-zinc-700 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-400"
-                placeholder="Digite sua senha"
-                required
-              />
-            </label>
-
             <button
               type="submit"
               disabled={loading}
