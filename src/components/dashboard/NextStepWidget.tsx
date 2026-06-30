@@ -76,7 +76,7 @@ export default function NextStepWidget({ user_id, userProducts, onRequestOpen }:
       try {
         console.debug('NextStepWidget debug', {
           userProducts,
-          picked,
+          product,
           totalProducts: computedTotalProducts
         })
       } catch (e) {
