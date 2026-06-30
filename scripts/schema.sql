@@ -19,6 +19,10 @@ CREATE TABLE public.products (
   title TEXT NOT NULL,
   description TEXT,
   thumbnail_url TEXT,
+  vimeo_url TEXT,                      -- URL do vídeo de VSL/upsell (Vimeo player)
+  upsell_unlock_seconds INT4 DEFAULT 45, -- Tempo em segundos para liberar a oferta no modal
+  price_anchor_text TEXT,             -- Preço de referência (ex: 'De R$ 497,00')
+  price_offer_text TEXT,              -- Preço ofertado (ex: 'Por R$ 297,00')
   checkout_url TEXT NOT NULL,          -- Link da Cakto caso esteja bloqueado
   upsell_priority INT4 DEFAULT 0,
   widget_badge_text TEXT,

@@ -6,11 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",
     "@supabase/supabase-js": "^2.36.0",
+    "@vimeo/player": "^2.30.4",
     "next": "latest",
     "react": "18.2.0",
     "react-dom": "18.2.0",

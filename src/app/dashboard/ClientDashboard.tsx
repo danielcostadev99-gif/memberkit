@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSupabase } from '../../components/SupabaseProvider'
 import { useRouter } from 'next/navigation'
 import NextStepWidget from '../../components/dashboard/NextStepWidget'
@@ -11,9 +11,57 @@ type Product = {
   title: string
   description?: string
   thumbnail_url?: string
+  vimeo_url?: string
+  upsell_unlock_seconds?: number | null
+  price_anchor_text?: string
+  price_offer_text?: string
   checkout_url: string
   product_route: string
   funnel_id: string
+}
+
+const DEFAULT_UNLOCK_TIME_SECONDS = 45
+const UPSELL_PROGRESS_KEY_PREFIX = 'memberkit:upsell-progress:'
+
+function getUpsellProgressKey(productId: string) {
+  return `${UPSELL_PROGRESS_KEY_PREFIX}${productId}`
+}
+
+function extractVimeoId(url: string): string | null {
+  const value = (url || '').trim()
+  if (!value) return null
+
+  const directMatch = value.match(/vimeo\.com\/(?:video\/)?(\d+)/i)
+  if (directMatch?.[1]) return directMatch[1]
+
+  const idOnlyMatch = value.match(/^(\d{6,})$/)
+  return idOnlyMatch?.[1] || null
+}
+
+function getUpsellEmbedUrl(product: Product | null) {
+  if (!product) return null
+  const rawUrl = (product.vimeo_url || '').trim()
+  const videoId = extractVimeoId(rawUrl)
+  if (!videoId) return null
+
+  const params = new URLSearchParams({
+    autoplay: '1',
+    muted: '1',
+    dnt: '1',
+    title: '0',
+    byline: '0',
+    portrait: '0',
+    playsinline: '1'
+  })
+
+  return `https://player.vimeo.com/video/${videoId}?${params.toString()}`
+}
+
+function getUnlockTimeSeconds(product: Product | null) {
+  const raw = Number(product?.upsell_unlock_seconds)
+  if (!Number.isFinite(raw)) return DEFAULT_UNLOCK_TIME_SECONDS
+  const normalized = Math.floor(raw)
+  return normalized > 0 ? normalized : DEFAULT_UNLOCK_TIME_SECONDS
 }
 
 export default function ClientDashboard() {
@@ -25,8 +73,56 @@ export default function ClientDashboard() {
   const [modalProduct, setModalProduct] = useState<Product | null>(null)
   const [userProductIds, setUserProductIds] = useState<string[]>([])
   const [user, setUser] = useState<any | null>(null)
+  const [watchedSeconds, setWatchedSeconds] = useState(0)
+  const [conversionUnlocked, setConversionUnlocked] = useState(false)
+  const [showSoundOverlay, setShowSoundOverlay] = useState(true)
+
+  const iframeRef = useRef<HTMLIFrameElement | null>(null)
+  const vimeoPlayerRef = useRef<any>(null)
 
   const supabase = useSupabase()
+  const upsellEmbedUrl = getUpsellEmbedUrl(modalProduct)
+  const unlockTimeSeconds = getUnlockTimeSeconds(modalProduct)
+
+  function saveUpsellProgress(productId: string, seconds: number) {
+    if (typeof window === 'undefined') return
+    const safeSeconds = Math.max(0, Math.floor(seconds))
+    try {
+      const key = getUpsellProgressKey(productId)
+      const existing = Number(localStorage.getItem(key) || '0')
+      if (safeSeconds > existing) {
+        localStorage.setItem(key, String(safeSeconds))
+      }
+    } catch (e) {
+      console.warn('saveUpsellProgress failed', e)
+    }
+  }
+
+  async function closeUpsellModal() {
+    if (modalProduct && vimeoPlayerRef.current) {
+      try {
+        const currentTime = await vimeoPlayerRef.current.getCurrentTime()
+        saveUpsellProgress(modalProduct.id, Number(currentTime || 0))
+      } catch (e) {
+        console.warn('closeUpsellModal: failed to read current time', e)
+      }
+    }
+
+    setModalProduct(null)
+    setShowSoundOverlay(true)
+  }
+
+  async function handleEnableSound() {
+    if (!vimeoPlayerRef.current) return
+    try {
+      await vimeoPlayerRef.current.setMuted(false)
+      await vimeoPlayerRef.current.setVolume(1)
+      await vimeoPlayerRef.current.play()
+      setShowSoundOverlay(false)
+    } catch (e) {
+      console.warn('handleEnableSound failed', e)
+    }
+  }
 
   async function openProductModalById(id: string) {
     try {
@@ -42,6 +138,73 @@ export default function ClientDashboard() {
       console.warn('openProductModalById failed', e)
     }
   }
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function setupVimeoPlayer() {
+      if (!modalProduct || !upsellEmbedUrl || !iframeRef.current) return
+
+      let initialProgress = 0
+      try {
+        const saved = Number(localStorage.getItem(getUpsellProgressKey(modalProduct.id)) || '0')
+        initialProgress = Number.isFinite(saved) ? Math.max(0, saved) : 0
+      } catch (e) {
+        console.warn('Failed to load upsell progress', e)
+      }
+
+      setWatchedSeconds(initialProgress)
+      setConversionUnlocked(initialProgress >= unlockTimeSeconds)
+      setShowSoundOverlay(true)
+
+      const playerModule = await import('@vimeo/player')
+      if (cancelled || !iframeRef.current) return
+
+      const Player = playerModule.default
+      const player = new Player(iframeRef.current)
+      vimeoPlayerRef.current = player
+
+      const onTimeUpdate = (data: { seconds: number }) => {
+        const current = Math.max(0, Math.floor(data.seconds || 0))
+        setWatchedSeconds((prev) => (current > prev ? current : prev))
+        saveUpsellProgress(modalProduct.id, current)
+
+        if (current >= unlockTimeSeconds) {
+          setConversionUnlocked(true)
+        }
+      }
+
+      const onVolumeChange = (data: { muted?: boolean; volume?: number }) => {
+        const isMuted = typeof data.muted === 'boolean' ? data.muted : (data.volume || 0) === 0
+        setShowSoundOverlay(isMuted)
+      }
+
+      player.on('timeupdate', onTimeUpdate)
+      player.on('volumechange', onVolumeChange)
+
+      try {
+        if (initialProgress > 0) {
+          await player.setCurrentTime(initialProgress)
+        }
+      } catch (e) {
+        console.warn('Failed to seek upsell video', e)
+      }
+    }
+
+    setupVimeoPlayer()
+
+    return () => {
+      cancelled = true
+      const existingPlayer = vimeoPlayerRef.current
+      if (existingPlayer) {
+        void existingPlayer.destroy().catch((e: unknown) => {
+          console.warn('Failed to destroy Vimeo player', e)
+        })
+      }
+      vimeoPlayerRef.current = null
+      setShowSoundOverlay(true)
+    }
+  }, [modalProduct, upsellEmbedUrl, unlockTimeSeconds])
 
   async function handleLogout() {
     setLoggingOut(true)
@@ -152,7 +315,7 @@ export default function ClientDashboard() {
     return () => {
       mounted = false
     }
-  }, [])
+  }, [supabase])
 
   if (loading) {
     return <div className="p-8 text-white">Carregando...</div>
@@ -261,26 +424,74 @@ export default function ClientDashboard() {
       {/* Modal Upsell */}
       {modalProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setModalProduct(null)} />
-          <div className="relative z-10 w-full max-w-2xl mx-4">
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-md" onClick={() => void closeUpsellModal()} />
+          <div className={`relative z-10 w-full mx-4 transition-all duration-500 ${conversionUnlocked ? 'max-w-6xl' : 'max-w-4xl'}`}>
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 md:p-6 lg:p-8">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h3 className="text-2xl font-semibold">{modalProduct.title}</h3>
-                  <p className="text-zinc-400 mt-2">{modalProduct.description}</p>
+                  <h3 className="text-2xl md:text-3xl font-semibold leading-tight">{modalProduct.title}</h3>
+                  {!conversionUnlocked && (
+                    <p className="text-zinc-400 mt-2 text-sm">
+                      Assista {unlockTimeSeconds}s para liberar a oferta.
+                      {' '}
+                      Progresso: {Math.min(watchedSeconds, unlockTimeSeconds)}s/{unlockTimeSeconds}s
+                    </p>
+                  )}
                 </div>
-                <button onClick={() => setModalProduct(null)} className="text-zinc-300 text-sm px-3 py-1 rounded border border-zinc-700">Fechar</button>
+                <button onClick={() => void closeUpsellModal()} className="text-zinc-300 text-sm px-3 py-1 rounded border border-zinc-700 hover:bg-zinc-800 transition">Fechar</button>
               </div>
 
-              <div className="mt-6 flex items-center justify-end gap-3">
-                <a
-                  href={modalProduct.checkout_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-block bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2 rounded-md font-medium"
-                >
-                  Comprar
-                </a>
+              <div className={`mt-6 grid gap-6 transition-all duration-500 ${conversionUnlocked ? 'lg:grid-cols-2 items-start' : 'grid-cols-1'}`}>
+                <div className="relative rounded-xl overflow-hidden border border-zinc-700 bg-black">
+                  <div className="aspect-video">
+                    {upsellEmbedUrl ? (
+                      <iframe
+                        ref={iframeRef}
+                        src={upsellEmbedUrl}
+                        title={`Upsell ${modalProduct.title}`}
+                        className="w-full h-full"
+                        allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media"
+                        allowFullScreen
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-zinc-400 text-sm px-4 text-center">
+                        Este produto ainda não possui URL de vídeo Vimeo configurada.
+                      </div>
+                    )}
+                  </div>
+
+                  {upsellEmbedUrl && showSoundOverlay && (
+                    <button
+                      onClick={handleEnableSound}
+                      className="absolute inset-x-0 bottom-0 md:bottom-3 mx-0 md:mx-3 rounded-none md:rounded-lg bg-black/70 text-white text-sm py-2.5 px-4 hover:bg-black/80 transition"
+                    >
+                      Clique para ativar o som
+                    </button>
+                  )}
+                </div>
+
+                <div className={`transition-all duration-500 overflow-hidden ${conversionUnlocked ? 'opacity-100 translate-y-0 max-h-[1000px]' : 'opacity-0 translate-y-4 max-h-0 pointer-events-none'}`}>
+                  <div className="bg-zinc-950/60 border border-zinc-800 rounded-xl p-5">
+                    <p className="text-zinc-300 leading-relaxed">{modalProduct.description || 'Oferta especial liberada para você.'}</p>
+
+                    <div className="mt-5 rounded-lg border border-emerald-800/60 bg-emerald-950/30 p-4">
+                      <div className="text-xs uppercase tracking-wide text-emerald-300/80">Preço Especial de Aluno</div>
+                      <div className="mt-2 text-zinc-300 line-through">{modalProduct.price_anchor_text || 'De R$ 497,00'}</div>
+                      <div className="text-3xl font-bold text-emerald-400">{modalProduct.price_offer_text || 'Por R$ 297,00'}</div>
+                    </div>
+
+                    <div className="mt-6">
+                      <a
+                        href={modalProduct.checkout_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex w-full items-center justify-center bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-3 rounded-md font-semibold transition"
+                      >
+                        Comprar Agora
+                      </a>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

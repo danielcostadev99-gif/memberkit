@@ -57,6 +57,8 @@ export default function NextStepWidget({ user_id, userProducts, onRequestOpen }:
         console.warn('NextStepWidget product fetch failed', e)
       }
 
+      let computedTotalProducts = 0
+
       // 2) count total products
       try {
         const { data: countData, count, error: countErr } = await supabase.from('products').select('id', { count: 'exact', head: false })
@@ -66,6 +68,7 @@ export default function NextStepWidget({ user_id, userProducts, onRequestOpen }:
         if (mounted) {
           const cd: any = countData
           const total = typeof count === 'number' ? count : Array.isArray(cd) ? cd.length : 0
+          computedTotalProducts = total
           setTotalProducts(total)
         }
 
@@ -73,8 +76,8 @@ export default function NextStepWidget({ user_id, userProducts, onRequestOpen }:
       try {
         console.debug('NextStepWidget debug', {
           userProducts,
-          picked: product,
-          totalProducts
+          picked,
+          totalProducts: computedTotalProducts
         })
       } catch (e) {
         /* ignore */

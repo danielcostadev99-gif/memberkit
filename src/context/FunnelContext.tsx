@@ -35,7 +35,7 @@ export function FunnelProvider({ children, initialFunnels }: PropsWithChildren<{
     if (!currentFunnel || !funnels.find((f) => f.id === currentFunnel.id)) {
       setCurrentFunnel(funnels[0])
     }
-  }, [funnels])
+  }, [funnels, currentFunnel])
 
   const setCurrentFunnelById = (id: string) => {
     const found = funnels.find((f) => f.id === id) ?? null
