@@ -28,6 +28,21 @@ export default function ClientDashboard() {
 
   const supabase = useSupabase()
 
+  async function openProductModalById(id: string) {
+    try {
+      const { data: productData, error: prodErr } = await supabase.from('products').select('*').eq('id', id).maybeSingle()
+      if (prodErr) {
+        console.warn('openProductModalById: product lookup failed', prodErr)
+        return
+      }
+      if (productData) {
+        setModalProduct(productData as Product)
+      }
+    } catch (e) {
+      console.warn('openProductModalById failed', e)
+    }
+  }
+
   async function handleLogout() {
     setLoggingOut(true)
     try {
@@ -165,7 +180,7 @@ export default function ClientDashboard() {
       <main className="pt-20 max-w-7xl mx-auto px-6 pb-12">
         {/* Next Step Widget */}
         <div className="mb-8">
-          <NextStepWidget user_id={user?.id || ''} userProducts={userProductIds} />
+          <NextStepWidget user_id={user?.id || ''} userProducts={userProductIds} onRequestOpen={(id) => openProductModalById(id)} />
         </div>
         {/* Active Programs Section */}
         <section className="mb-10">

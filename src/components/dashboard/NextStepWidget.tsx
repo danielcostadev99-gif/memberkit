@@ -2,10 +2,12 @@
 
 import React, { useEffect, useState } from 'react'
 import { useSupabase } from '../SupabaseProvider'
+import { useRouter } from 'next/navigation'
 
 type Props = {
   user_id: string
   userProducts: string[]
+  onRequestOpen?: (productId: string) => void
 }
 
 type Product = {
@@ -14,10 +16,12 @@ type Product = {
   checkout_url?: string
   widget_badge_text?: string
   widget_alert_text?: string
+  product_route?: string
 }
 
-export default function NextStepWidget({ user_id, userProducts }: Props) {
+export default function NextStepWidget({ user_id, userProducts, onRequestOpen }: Props) {
   const supabase = useSupabase()
+  const router = useRouter()
   const [product, setProduct] = useState<Product | null>(null)
   const [totalProducts, setTotalProducts] = useState<number | null>(null)
   const [closed, setClosed] = useState(false)
@@ -32,7 +36,7 @@ export default function NextStepWidget({ user_id, userProducts }: Props) {
       try {
         const { data: prodData, error: prodErr } = await supabase
           .from('products')
-          .select('id, title, checkout_url, widget_badge_text, widget_alert_text, upsell_priority')
+          .select('id, title, checkout_url, product_route, widget_badge_text, widget_alert_text, upsell_priority')
           .order('upsell_priority', { ascending: true })
           .limit(10)
 
@@ -120,7 +124,22 @@ export default function NextStepWidget({ user_id, userProducts }: Props) {
       {product.widget_alert_text && <div className="text-sm text-zinc-600 mt-4">{product.widget_alert_text}</div>}
 
       <button
-        onClick={() => product.checkout_url && window.open(product.checkout_url, '_blank')}
+        onClick={() => {
+          if (!product) return
+          if (typeof onRequestOpen === 'function') {
+            onRequestOpen(product.id)
+            return
+          }
+          if (product.checkout_url) {
+            window.open(product.checkout_url, '_blank')
+            return
+          }
+          if (product.product_route) {
+            router.push(product.product_route)
+            return
+          }
+          console.warn('NextStepWidget: product has no checkout_url or product_route', product)
+        }}
         className="w-full mt-4 bg-zinc-900 text-white text-sm font-medium py-2.5 rounded-lg hover:bg-zinc-800 transition-colors"
       >
         Ver Próximo Passo
