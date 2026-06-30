@@ -9,8 +9,8 @@ export const metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR">
-      <body className="bg-zinc-950 text-white min-h-screen" suppressHydrationWarning>
+    <html lang="pt-BR" suppressHydrationWarning>
+      <body className="bg-zinc-950 text-white min-h-screen">
         <SupabaseProvider>
           <FunnelProvider>{children}</FunnelProvider>
         </SupabaseProvider>

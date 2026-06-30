@@ -1,10 +1,14 @@
 "use client"
 
-import React, { createContext, useContext, useMemo } from 'react'
+import React, { createContext, useContext } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createClient } from '@supabase/supabase-js'
 
 const SupabaseContext = createContext<SupabaseClient | null>(null)
+
+const _supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+const _supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+const supabase: SupabaseClient = createClient(_supabaseUrl, _supabaseAnonKey)
 
 export function useSupabase() {
   const ctx = useContext(SupabaseContext)
@@ -13,10 +17,5 @@ export function useSupabase() {
 }
 
 export default function SupabaseProvider({ children }: { children: React.ReactNode }) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-
-  const client = useMemo(() => createClient(supabaseUrl, supabaseAnonKey), [supabaseUrl, supabaseAnonKey])
-
-  return <SupabaseContext.Provider value={client}>{children}</SupabaseContext.Provider>
+  return <SupabaseContext.Provider value={supabase}>{children}</SupabaseContext.Provider>
 }
