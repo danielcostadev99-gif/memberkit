@@ -37,6 +37,7 @@ export default function NextStepWidget({ user_id, userProducts, onRequestOpen }:
         const { data: prodData, error: prodErr } = await supabase
           .from('products')
           .select('id, title, checkout_url, product_route, widget_badge_text, widget_alert_text, upsell_priority')
+          .gte('upsell_priority', 1)
           .order('upsell_priority', { ascending: true })
           .limit(10)
 
@@ -44,12 +45,12 @@ export default function NextStepWidget({ user_id, userProducts, onRequestOpen }:
           console.warn('NextStepWidget: product query error', prodErr)
         }
 
-        // pick first product not owned by user
+        // pick the product with lowest upsell_priority not owned by the user
         let picked: any = null
         if (Array.isArray(prodData)) {
           const notOwned = prodData.filter((p: any) => !userProducts.includes(String(p.id)))
-          // Prefer products that include a widget message/badge so the user sees the alert
-          picked = notOwned.find((p: any) => p.widget_alert_text || p.widget_badge_text) || notOwned[0] || null
+          // prodData is ordered by upsell_priority ascending; choose the first not-owned
+          picked = notOwned.length > 0 ? notOwned[0] : null
         }
         if (mounted) setProduct(picked)
       } catch (e) {
