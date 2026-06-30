@@ -43,7 +43,9 @@ export default function NextStepWidget({ user_id, userProducts }: Props) {
         // pick first product not owned by user
         let picked: any = null
         if (Array.isArray(prodData)) {
-          picked = prodData.find((p: any) => !userProducts.includes(String(p.id))) || null
+          const notOwned = prodData.filter((p: any) => !userProducts.includes(String(p.id)))
+          // Prefer products that include a widget message/badge so the user sees the alert
+          picked = notOwned.find((p: any) => p.widget_alert_text || p.widget_badge_text) || notOwned[0] || null
         }
         if (mounted) setProduct(picked)
       } catch (e) {
@@ -90,6 +92,7 @@ export default function NextStepWidget({ user_id, userProducts }: Props) {
   if (loading) return null
   if (totalProducts === null) return null
 
+
   const ownedCount = userProducts ? userProducts.length : 0
   const pct = totalProducts > 0 ? Math.round((ownedCount / totalProducts) * 100) : 100
 
@@ -97,7 +100,7 @@ export default function NextStepWidget({ user_id, userProducts }: Props) {
   if (!product) return null
 
   return (
-    <div className="bg-white border border-zinc-200 rounded-xl p-5 shadow-sm">
+    <div className="bg-white border border-zinc-200 rounded-xl p-5 shadow-sm text-zinc-900">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <span className="w-3 h-3 rounded-full bg-emerald-400 animate-pulse" />
@@ -108,6 +111,7 @@ export default function NextStepWidget({ user_id, userProducts }: Props) {
         </div>
         <button onClick={() => setClosed(true)} className="text-zinc-400 text-sm">Fechar</button>
       </div>
+
 
       <div className="w-full bg-zinc-100 h-2 rounded-full mt-3 overflow-hidden">
         <div className="bg-zinc-900 h-2 rounded-full" style={{ width: `${pct}%` }} />
@@ -121,6 +125,8 @@ export default function NextStepWidget({ user_id, userProducts }: Props) {
       >
         Ver Próximo Passo
       </button>
+
+      
     </div>
   )
 }
